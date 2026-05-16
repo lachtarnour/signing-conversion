@@ -1,0 +1,10 @@
+# Editors
+.vscode/
+.idea/
+# OS
+.DS_Store
+
+dev.ipynb 
+__pycache__/
+.venv/
+data/raw/

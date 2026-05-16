@@ -1,0 +1,13 @@
+name: m4singer
+language: zh
+sample_rate: 16000
+
+source_dir: ~/projets/datasets/m4singer
+raw_dir: data/raw/m4singer
+
+split:
+  train_ratio: 0.8
+  dev_ratio: 0.1
+  seed: 42
+  suffixes: [".wav", ".mid", ".TextGrid"]
+  clean: true
