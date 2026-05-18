@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from itertools import chain
@@ -304,12 +305,13 @@ def preprocess_dataset_parallel(
 
     speaker_ids = _speaker_ids(raw_items)
     manifests: dict[str, list[ManifestEntry]] = {}
-    max_workers = min(cfg.num_workers, len(raw_items), os.cpu_count() or cfg.num_workers)
+    max_workers = min(cfg.num_workers, len(raw_items))
 
     with ProcessPoolExecutor(
         max_workers=max_workers,
         initializer=_init_worker,
         initargs=(cfg, speaker_ids),
+        mp_context=_multiprocessing_context(cfg),
     ) as executor:
         progress = tqdm(
             executor.map(_process_audio_item_in_worker, raw_items, chunksize=1),
@@ -344,3 +346,10 @@ def _pitch_device(cfg: PreprocessConfig) -> str:
 
 def _build_mel_module(cfg: PreprocessConfig) -> LogMelSpectrogram:
     return LogMelSpectrogram().to(resolve_device(cfg.torch_device, backend="torch")).eval()
+
+
+def _multiprocessing_context(cfg: PreprocessConfig) -> mp.context.BaseContext | None:
+    torch_device = cfg.torch_device.lower()
+    if torch_device.startswith("cuda") or (torch_device == "auto" and torch.cuda.is_available()):
+        return mp.get_context("spawn")
+    return None
