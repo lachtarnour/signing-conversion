@@ -1,0 +1,30 @@
+project:
+  name: softvc-f0
+  seed: 1234
+
+paths:
+  processed_dir: data/processed
+  train_manifest: data/manifests/manifest_train.jsonl
+  dev_manifest: data/manifests/manifest_dev.jsonl
+  checkpoints_dir: checkpoints
+
+device:
+  torch: auto
+
+train:
+  batch_size: 16
+  num_workers: 2
+  learning_rate: 0.0004
+  weight_decay: 0.00001
+  betas: [0.8, 0.99]
+  max_steps: 80000
+  log_every: 1
+  eval_every: 1000
+  save_every: 1000
+
+model:
+  name: softvc_f0
+  content_dim: 256
+  speaker_dim: 256
+  upsample: true
+  mel_dim: 128

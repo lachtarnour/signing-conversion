@@ -9,12 +9,16 @@ def configure_logging(level: int = logging.INFO) -> None:
         level=level,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
+    logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
 
 def setup_warnings() -> None:
-    """Silence known-benign third-party warnings (torchaudio stft resize, HF Hub anon)."""
     warnings.filterwarnings(
         "ignore",
-        message="An output with one or more elements was resized since it had shape",
+        message=r"An output with one or more elements was resized since it had shape.*",
         category=UserWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"You are sending unauthenticated requests to the HF Hub.*",
     )

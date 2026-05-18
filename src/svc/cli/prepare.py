@@ -6,8 +6,9 @@ import sys
 from pathlib import Path
 
 from svc.data.preprocess import PreprocessConfig, preprocess_dataset_parallel
-from svc.utils.config import load_config, resolve_path
+from svc.utils.config import load_config, resolve_path, section
 from svc.utils.logging import configure_logging, setup_warnings
+from svc.utils.seed import seed_everything
 
 
 def _check_python_version() -> None:
@@ -48,34 +49,44 @@ def main() -> int:
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    encoder_name = cfg["encoder"]["name"]
-    pitch_name = cfg["pitch"]["name"]
+    project_cfg = section(cfg, "project")
+    paths_cfg = section(cfg, "paths")
+    audio_cfg = section(cfg, "audio")
+    encoder_cfg = section(cfg, "encoder")
+    pitch_cfg = section(cfg, "pitch")
+    device_cfg = section(cfg, "device")
+    options_cfg = section(cfg, "preprocess")
+
+    seed = int(project_cfg.get("seed", 1234))
+    seed_everything(seed)
+    encoder_name = encoder_cfg["name"]
+    pitch_name = pitch_cfg["name"]
     _check_pitch_dependency(pitch_name)
-    sample_rate = int(cfg["audio"]["sample_rate"])
-    device_cfg = cfg.get("device", {})
-    preprocess_cfg = cfg.get("preprocess", {})
+    sample_rate = int(audio_cfg["sample_rate"])
     num_workers = (
         args.num_workers
         if args.num_workers is not None
-        else int(preprocess_cfg.get("num_workers", 1))
+        else int(options_cfg.get("num_workers", 1))
     )
     preprocess_cfg = PreprocessConfig(
-        raw_dir=resolve_path(cfg["paths"]["raw_dir"]),
-        processed_dir=resolve_path(cfg["paths"]["processed_dir"]),
-        manifest_dir=resolve_path(cfg["paths"]["manifest_dir"]),
+        raw_dir=resolve_path(paths_cfg["raw_dir"]),
+        processed_dir=resolve_path(paths_cfg["processed_dir"]),
+        manifest_dir=resolve_path(paths_cfg["manifest_dir"]),
         encoder_name=encoder_name,
+        pitch_name=pitch_name,
         sample_rate=sample_rate,
-        min_seconds=float(preprocess_cfg.get("min_seconds", 1.0)),
-        slice_on_silence=bool(preprocess_cfg.get("slice_on_silence", False)),
+        min_seconds=float(options_cfg.get("min_seconds", 1.0)),
+        extension=str(options_cfg.get("extension", ".wav")),
+        slice_on_silence=bool(options_cfg.get("slice_on_silence", False)),
         num_workers=max(1, num_workers),
-        torch_threads_per_worker=int(preprocess_cfg.get("torch_threads_per_worker", 1)),
+        torch_threads_per_worker=int(options_cfg.get("torch_threads_per_worker", 1)),
         torch_device=device_cfg.get("torch", "auto"),
         mlx_device=device_cfg.get("mlx", "auto"),
+        pitch_hop_length=pitch_cfg.get("hop_length"),
+        seed=seed,
     )
     preprocess_dataset_parallel(
         preprocess_cfg,
-        encoder_name=encoder_name,
-        pitch_name=pitch_name,
         limit=args.limit,
     )
     return 0

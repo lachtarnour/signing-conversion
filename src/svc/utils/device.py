@@ -6,6 +6,7 @@ import torch
 
 
 def resolve_device(name: str = "auto", backend: str = "torch") -> Any:
+    backend = backend.lower()
     if backend == "torch":
         return _resolve_torch_device(name)
     if backend == "mlx":
@@ -14,8 +15,9 @@ def resolve_device(name: str = "auto", backend: str = "torch") -> Any:
 
 
 def _resolve_torch_device(name: str) -> torch.device:
-    if name != "auto":
-        return torch.device(name)
+    normalized = name.lower()
+    if normalized != "auto":
+        return torch.device(normalized)
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
     if torch.cuda.is_available():

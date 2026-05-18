@@ -7,7 +7,8 @@
 dev.ipynb 
 __pycache__/
 .venv/
-data/
+/data/
 *.egg-info/
 dist/
 build/
+checkpoints/

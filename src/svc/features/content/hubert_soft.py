@@ -22,6 +22,7 @@ class HuBERTSoftEncoder(ContentEncoder):
             "hubert_soft",
             pretrained=pretrained,
             trust_repo=True,
+            verbose=False,
         )
         self.model.to(self.device)
         self.model.eval()
