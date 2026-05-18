@@ -88,14 +88,14 @@ def ensure_speakers_in_train(
             raise RuntimeError(f"Cannot place these speakers in train: {sorted(missing)}")
         
 
-def link_file(file_path:Path,distination:Path):
-    if distination.exists():
+def link_file(file_path:Path,destination:Path):
+    if destination.exists():
         return
-    distination.parent.mkdir(parents = True, exist_ok=True)
-    distination.symlink_to(os.path.relpath(file_path.resolve(), distination.parent.resolve()))
+    destination.parent.mkdir(parents = True, exist_ok=True)
+    destination.symlink_to(os.path.relpath(file_path.resolve(), destination.parent.resolve()))
     
 
-def materilize_split(
+def materialize_split(
     split_map: dict[str, set[str]],
     songs: dict[str, list[tuple[str, Path]]],
     destination: Path,
@@ -151,7 +151,7 @@ def main():
         seed=split_cfg.get("seed", 42),
     )
     ensure_speakers_in_train(split_map, songs)
-    materilize_split(split_map, songs, dst, suffixes)
+    materialize_split(split_map, songs, dst, suffixes)
 
     print(f"\nDataset prepared.\nOutput: {dst}")
 
