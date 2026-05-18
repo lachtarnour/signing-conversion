@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from svc.data.dataset import SVCDataset, pad_collate
 from svc.models.factory import build_acoustic_model
 from svc.training.trainer import SoftVCTrainer, TrainerConfig
+from svc.training.wandb import build_wandb_logger
 from svc.utils.config import load_config, resolve_path, section
 from svc.utils.device import resolve_device
 from svc.utils.logging import configure_logging, setup_warnings
@@ -28,6 +29,7 @@ def build_trainer(cfg: dict, max_steps: int | None = None) -> SoftVCTrainer:
     train_cfg = section(cfg, "train")
     model_cfg = section(cfg, "model")
     device_cfg = section(cfg, "device")
+    logging_cfg = section(cfg, "logging")
 
     seed_everything(int(project_cfg.get("seed", 1234)))
     train_manifest = resolve_path(paths_cfg["train_manifest"])
@@ -74,7 +76,8 @@ def build_trainer(cfg: dict, max_steps: int | None = None) -> SoftVCTrainer:
         checkpoints_dir=str(resolve_path(paths_cfg["checkpoints_dir"])),
         device=str(resolve_device(device_cfg.get("torch", "auto"), backend="torch")),
     )
-    return SoftVCTrainer(model, train_loader, val_loader, trainer_cfg)
+    logger = build_wandb_logger(logging_cfg, run_config=cfg)
+    return SoftVCTrainer(model, train_loader, val_loader, trainer_cfg, logger=logger)
 
 
 def main() -> int:

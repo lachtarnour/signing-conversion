@@ -21,6 +21,9 @@ dependencies = [
 rmvpe = [
     "mlx-rmvpe",
 ]
+tracking = [
+    "wandb",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

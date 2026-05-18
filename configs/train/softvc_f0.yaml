@@ -11,6 +11,14 @@ paths:
 device:
   torch: auto
 
+logging:
+  wandb:
+    enabled: false
+    project: signing-conversion
+    run_name: softvc-f0
+    tags: []
+    log_checkpoints: false
+
 train:
   batch_size: 16
   num_workers: 2

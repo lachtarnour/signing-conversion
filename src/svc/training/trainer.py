@@ -13,6 +13,7 @@ from svc.models.acoustic.softvc_f0 import SoftVCF0AcousticModel
 from svc.training.checkpoint import save_training_checkpoint
 from svc.training.losses import length_normalized_l1
 from svc.training.optimizer import build_adamw
+from svc.training.wandb import WandbLogger
 
 LOG = logging.getLogger(__name__)
 
@@ -37,11 +38,13 @@ class SoftVCTrainer:
         train_loader: DataLoader,
         val_loader: DataLoader | None,
         cfg: TrainerConfig,
+        logger: WandbLogger | None = None,
     ) -> None:
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.cfg = cfg
+        self.logger = logger
         self.device = torch.device(cfg.device)
         self.model.to(self.device)
         self.optimizer = build_adamw(
@@ -109,6 +112,8 @@ class SoftVCTrainer:
             self.optimizer,
             extra={"global_step": self.global_step, "best_val_loss": self.best_val_loss},
         )
+        if self.logger is not None:
+            self.logger.log_checkpoint(path, self.global_step)
         return path
 
     def _epoch_iterator(self) -> Iterable:
@@ -120,27 +125,46 @@ class SoftVCTrainer:
         running = 0.0
         running_count = 0
         LOG.info("Training params=%d device=%s", self.model.num_parameters, self.device)
-        for batch in self._epoch_iterator():
-            metrics = self.step(batch)
-            running += metrics["loss"]
-            running_count += 1
-            if self.global_step % self.cfg.log_every == 0:
-                LOG.info(
-                    "step=%d loss=%.4f elapsed=%.1fs",
-                    self.global_step,
-                    running / max(1, running_count),
-                    time.time() - start,
-                )
-                running = 0.0
-                running_count = 0
-            if self.val_loader is not None and self.global_step % self.cfg.eval_every == 0:
-                val_loss = self.evaluate()
-                LOG.info("step=%d val_loss=%.4f", self.global_step, val_loss)
-                if val_loss is not None and val_loss < self.best_val_loss:
-                    self.best_val_loss = val_loss
-                    self.save("softvc_f0_best.pt")
-            if self.global_step % self.cfg.save_every == 0:
-                self.save(f"softvc_f0_step_{self.global_step}.pt")
-            if self.global_step >= self.cfg.max_steps:
-                self.save("softvc_f0_last.pt")
-                return
+        if self.logger is not None:
+            self.logger.watch(self.model)
+        try:
+            for batch in self._epoch_iterator():
+                metrics = self.step(batch)
+                running += metrics["loss"]
+                running_count += 1
+                if self.global_step % self.cfg.log_every == 0:
+                    train_loss = running / max(1, running_count)
+                    elapsed = time.time() - start
+                    LOG.info(
+                        "step=%d loss=%.4f elapsed=%.1fs",
+                        self.global_step,
+                        train_loss,
+                        elapsed,
+                    )
+                    if self.logger is not None:
+                        self.logger.log(
+                            {
+                                "train/loss": train_loss,
+                                "train/learning_rate": self.optimizer.param_groups[0]["lr"],
+                                "time/elapsed_seconds": elapsed,
+                            },
+                            self.global_step,
+                        )
+                    running = 0.0
+                    running_count = 0
+                if self.val_loader is not None and self.global_step % self.cfg.eval_every == 0:
+                    val_loss = self.evaluate()
+                    LOG.info("step=%d val_loss=%.4f", self.global_step, val_loss)
+                    if self.logger is not None and val_loss is not None:
+                        self.logger.log({"val/loss": val_loss}, self.global_step)
+                    if val_loss is not None and val_loss < self.best_val_loss:
+                        self.best_val_loss = val_loss
+                        self.save("softvc_f0_best.pt")
+                if self.global_step % self.cfg.save_every == 0:
+                    self.save(f"softvc_f0_step_{self.global_step}.pt")
+                if self.global_step >= self.cfg.max_steps:
+                    self.save("softvc_f0_last.pt")
+                    return
+        finally:
+            if self.logger is not None:
+                self.logger.finish()
