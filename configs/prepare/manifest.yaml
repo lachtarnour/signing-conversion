@@ -1,0 +1,23 @@
+paths:
+  raw_dir: data/raw/m4singer
+  processed_dir: data/processed
+  manifest_dir: data/manifests
+
+audio:
+  sample_rate: 16000
+
+encoder:
+  name: hubert_soft
+
+pitch:
+  name: rmvpe
+
+device:
+  torch: auto
+  mlx: auto
+
+preprocess:
+  min_seconds: 1.0
+  slice_on_silence: false
+  num_workers: 4
+  torch_threads_per_worker: 1

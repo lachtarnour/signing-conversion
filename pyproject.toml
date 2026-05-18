@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "signing-conversion"
+version = "0.1.0"
+description = "Singing voice conversion preprocessing pipeline."
+requires-python = ">=3.11"
+dependencies = [
+    "PyYAML",
+    "librosa",
+    "numpy",
+    "soundfile",
+    "torch",
+    "torchaudio",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+rmvpe = [
+    "mlx-rmvpe",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

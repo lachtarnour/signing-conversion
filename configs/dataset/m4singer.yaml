@@ -1,7 +1,3 @@
-name: m4singer
-language: zh
-sample_rate: 16000
-
 source_dir: ~/projets/datasets/m4singer
 raw_dir: data/raw/m4singer
 

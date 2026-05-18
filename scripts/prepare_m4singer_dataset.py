@@ -1,23 +1,17 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Tuple
+import argparse
+import os
 import random
-import os 
-import argparse 
-import sys
 import shutil
+from pathlib import Path
+
+from svc.utils.config import load_config, resolve_path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
-
-from svc.utils.config import load_config  # noqa: E402
 
 
-
-
-def discover_songs(src: Path) -> dict[str, list[Tuple[str, Path]]]:
-    """Return {song: [(speaker, folder), ...]} for each 'Speaker-N#Song' directory."""
+def discover_songs(src: Path) -> dict[str, list[tuple[str, Path]]]:
     songs: dict[str, list[tuple[str, Path]]] = {}
     for folder in sorted(src.iterdir()):
         if not folder.is_dir() or "#" not in folder.name:
@@ -30,13 +24,13 @@ def discover_songs(src: Path) -> dict[str, list[Tuple[str, Path]]]:
         raise RuntimeError(f"No valid M4Singer folders found in: {src}")
     return songs
 
+
 def split_by_song(
-        songs: dict[str, list[Tuple[str, Path]]],
-        train_ratio:float,
-        dev_ratio:float,
-        seed: int,    
-) -> dict[str,set[str]]:
-    """random split by song name"""
+    songs: dict[str, list[tuple[str, Path]]],
+    train_ratio: float,
+    dev_ratio: float,
+    seed: int,
+) -> dict[str, set[str]]:
     random.seed(seed)
     names = sorted(songs.keys())
     random.shuffle(names)
@@ -48,15 +42,14 @@ def split_by_song(
         "test": set(names[n_train + n_dev:]),
     }
 
+
 def ensure_speakers_in_train(
     split_map: dict[str, set[str]],
     songs: dict[str, list[tuple[str, Path]]],
 ) -> None:
-    """Move songs from dev/test to train until every speaker appears in train."""
     speakers = lambda group: {s for song in group for s, _ in songs[song]}
 
-    # Each iteration moves at most one song to train.
-    # Therefore, len(songs) iterations is a safe upper bound.
+    # Move one song at a time so every speaker has training examples.
     for _ in range(len(songs)):
         missing = (speakers(split_map["dev"]) | speakers(split_map["test"])) - speakers(
             split_map["train"]
@@ -86,22 +79,21 @@ def ensure_speakers_in_train(
                 break
         if not moved:
             raise RuntimeError(f"Cannot place these speakers in train: {sorted(missing)}")
-        
 
-def link_file(file_path:Path,destination:Path):
+
+def link_file(file_path: Path, destination: Path) -> None:
     if destination.exists():
         return
-    destination.parent.mkdir(parents = True, exist_ok=True)
+    destination.parent.mkdir(parents=True, exist_ok=True)
     destination.symlink_to(os.path.relpath(file_path.resolve(), destination.parent.resolve()))
-    
+
 
 def materialize_split(
     split_map: dict[str, set[str]],
     songs: dict[str, list[tuple[str, Path]]],
     destination: Path,
-    suffixes:set[str]
+    suffixes: set[str],
 ) -> None:
-    """Create {dst}/{split}/{speaker}/{song} with symlinks to the original files."""
     for split, split_songs in split_map.items():
         speakers = set()
         folders = 0
@@ -111,7 +103,7 @@ def materialize_split(
                 folders += 1
                 for file in song_dir.iterdir():
                     if file.suffix in suffixes:
-                        link_file(file,destination/split/speaker/song/file.name)
+                        link_file(file, destination / split / speaker / song / file.name)
         print(
             f"{split:5s}  singers={len(speakers):3d}  "
             f"songs={len(split_songs):3d}  folders={folders}"
@@ -128,9 +120,6 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-def resolve_path(value: str) -> Path:
-    return Path(value).expanduser() if value.startswith("~") else (ROOT / value)
-               
 def main():
     args = parse_args()
     cfg = load_config(args.config)
@@ -154,6 +143,7 @@ def main():
     materialize_split(split_map, songs, dst, suffixes)
 
     print(f"\nDataset prepared.\nOutput: {dst}")
+
 
 if __name__ == "__main__":
     main()
