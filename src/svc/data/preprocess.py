@@ -40,6 +40,7 @@ class PreprocessConfig:
     torch_threads_per_worker: int = 1
     torch_device: str = "auto"
     mlx_device: str = "auto"
+    pitch_backend: str = "auto"
     pitch_hop_length: int | None = None
     seed: int = 1234
 
@@ -206,6 +207,7 @@ def _init_worker(
         sample_rate=cfg.sample_rate,
         hop_length=_pitch_hop_length(cfg, content_encoder),
         device=_pitch_device(cfg),
+        backend=cfg.pitch_backend,
     )
     _WORKER.update(
         cfg=cfg,
@@ -296,6 +298,7 @@ def preprocess_dataset_parallel(
             sample_rate=cfg.sample_rate,
             hop_length=_pitch_hop_length(cfg, content_encoder),
             device=_pitch_device(cfg),
+            backend=cfg.pitch_backend,
         )
         return preprocess_dataset(cfg, content_encoder, pitch_extractor, limit=limit)
 
@@ -334,7 +337,7 @@ def _pitch_hop_length(cfg: PreprocessConfig, content_encoder: ContentEncoder) ->
 
 
 def _pitch_device(cfg: PreprocessConfig) -> str:
-    if cfg.pitch_name.replace("-", "_").lower() == "rmvpe":
+    if cfg.pitch_name.replace("-", "_").lower() == "rmvpe" and cfg.pitch_backend == "mlx":
         return cfg.mlx_device
     return cfg.torch_device
 

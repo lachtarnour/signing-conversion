@@ -18,10 +18,16 @@ def build_pitch_extractor(
     sample_rate: int = 16000,
     hop_length: int = 320,
     device: str | None = None,
+    backend: str = "auto",
 ) -> PitchExtractor:
     normalized = name.replace("-", "_").lower()
     if normalized == "rmvpe":
-        return RMVPEPitchExtractor(sample_rate=sample_rate, hop_length=hop_length, device=device)
+        return RMVPEPitchExtractor(
+            sample_rate=sample_rate,
+            hop_length=hop_length,
+            device=device,
+            backend=backend,
+        )
     if normalized == "pyin":
         return PYINPitchExtractor(sample_rate=sample_rate, hop_length=hop_length)
     raise ValueError(f"Unknown pitch extractor: {name}")

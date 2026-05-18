@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import platform
 import sys
 from pathlib import Path
 
@@ -21,16 +22,25 @@ def _check_python_version() -> None:
     )
 
 
-def _check_pitch_dependency(pitch_name: str) -> None:
+def _check_pitch_dependency(pitch_name: str, backend: str) -> None:
     if pitch_name.replace("-", "_").lower() != "rmvpe":
         return
-    if importlib.util.find_spec("mlx_rmvpe") is not None:
+    backend = _resolve_rmvpe_backend(backend)
+    module = "mlx_rmvpe" if backend == "mlx" else "rmvpe_onnx"
+    if importlib.util.find_spec(module) is not None:
         return
     raise SystemExit(
-        "RMVPE is selected but mlx_rmvpe is not installed.\n"
-        "Use Python 3.11+ and run: python -m pip install -e '.[rmvpe]'\n"
+        f"RMVPE {backend} backend is selected but {module} is not installed.\n"
+        f"Install with: python -m pip install -e '.[rmvpe-{backend}]'\n"
         "Or set pitch.name: pyin in the config."
     )
+
+
+def _resolve_rmvpe_backend(backend: str) -> str:
+    normalized = backend.replace("-", "_").lower()
+    if normalized != "auto":
+        return normalized
+    return "mlx" if platform.system() == "Darwin" else "onnx"
 
 
 def main() -> int:
@@ -61,7 +71,8 @@ def main() -> int:
     seed_everything(seed)
     encoder_name = encoder_cfg["name"]
     pitch_name = pitch_cfg["name"]
-    _check_pitch_dependency(pitch_name)
+    pitch_backend = pitch_cfg.get("backend", "auto")
+    _check_pitch_dependency(pitch_name, pitch_backend)
     sample_rate = int(audio_cfg["sample_rate"])
     num_workers = (
         args.num_workers
@@ -82,6 +93,7 @@ def main() -> int:
         torch_threads_per_worker=int(options_cfg.get("torch_threads_per_worker", 1)),
         torch_device=device_cfg.get("torch", "auto"),
         mlx_device=device_cfg.get("mlx", "auto"),
+        pitch_backend=pitch_backend,
         pitch_hop_length=pitch_cfg.get("hop_length"),
         seed=seed,
     )

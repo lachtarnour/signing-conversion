@@ -42,6 +42,12 @@ python -m pip install --upgrade pip
 python -m pip install -e '.[rmvpe,tracking]'
 ```
 
+On Colab/Linux CUDA:
+
+```bash
+python -m pip install -e '.[rmvpe-cuda,tracking]'
+```
+
 Without Weights & Biases:
 
 ```bash

@@ -18,8 +18,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-rmvpe = [
+rmvpe-mlx = [
     "mlx-rmvpe",
+]
+rmvpe-onnx = [
+    "rmvpe-onnx",
+]
+rmvpe-cuda = [
+    "rmvpe-onnx",
+    "onnxruntime-gpu",
+]
+rmvpe = [
+    "mlx-rmvpe; platform_system == 'Darwin'",
+    "rmvpe-onnx; platform_system != 'Darwin'",
 ]
 tracking = [
     "wandb",
