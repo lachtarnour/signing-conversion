@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -32,6 +35,7 @@ class WandbLogger:
                 "or set logging.wandb.enabled: false."
             ) from exc
 
+        os.environ.setdefault("WANDB_DISABLE_STATS", "true")
         self._wandb = wandb
         self._run = wandb.init(
             project=cfg.project,
@@ -40,19 +44,71 @@ class WandbLogger:
             mode=cfg.mode,
             tags=list(cfg.tags),
             config=config,
+            settings=_wandb_settings(wandb),
         )
 
     @property
     def enabled(self) -> bool:
         return self._run is not None
 
-    def watch(self, model: Any) -> None:
-        if self._wandb is not None:
-            self._wandb.watch(model, log="gradients", log_freq=100)
-
     def log(self, metrics: dict[str, float], step: int) -> None:
         if self._wandb is not None:
             self._wandb.log(metrics, step=step)
+
+    def log_training_info(self, optimizer: Any, trainer_config: Any, batch_size: int | None) -> None:
+        if self._run is None:
+            return
+        optimizer_group = optimizer.param_groups[0] if optimizer.param_groups else {}
+        self._run.config.update(
+            {
+                "training_resolved": {
+                    "optimizer": optimizer.__class__.__name__,
+                    "learning_rate": optimizer_group.get("lr"),
+                    "weight_decay": optimizer_group.get("weight_decay"),
+                    "betas": optimizer_group.get("betas"),
+                    "max_steps": getattr(trainer_config, "max_steps", None),
+                    "batch_size": batch_size,
+                    "log_every": getattr(trainer_config, "log_every", None),
+                    "eval_every": getattr(trainer_config, "eval_every", None),
+                    "save_every": getattr(trainer_config, "save_every", None),
+                    "device": getattr(trainer_config, "device", None),
+                }
+            },
+            allow_val_change=True,
+        )
+
+    def gpu_metrics(self) -> dict[str, float]:
+        if self._wandb is None:
+            return {}
+        nvidia_smi = shutil.which("nvidia-smi")
+        if nvidia_smi is None:
+            return {}
+        fields = "utilization.gpu,temperature.gpu,clocks.current.sm"
+        try:
+            output = subprocess.check_output(
+                [
+                    nvidia_smi,
+                    f"--query-gpu={fields}",
+                    "--format=csv,noheader,nounits",
+                ],
+                text=True,
+                stderr=subprocess.DEVNULL,
+                timeout=2,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return {}
+        line = output.strip().splitlines()[0] if output.strip() else ""
+        if not line:
+            return {}
+        try:
+            util, temp, sm_clock = [float(value.strip()) for value in line.split(",")]
+        except ValueError:
+            return {}
+        return {
+            "system/gpu_utilization_percent": util,
+            "system/gpu_temperature_c": temp,
+            "system/gpu_sm_clock_mhz": sm_clock,
+        }
 
     def log_checkpoint(self, path: str | Path, step: int) -> None:
         if self._wandb is None or not self.cfg.log_checkpoints:
@@ -82,3 +138,10 @@ def build_wandb_logger(cfg: dict[str, Any], run_config: dict[str, Any]) -> Wandb
         ),
         config=run_config,
     )
+
+
+def _wandb_settings(wandb: Any) -> Any:
+    try:
+        return wandb.Settings(_disable_stats=True)
+    except TypeError:
+        return wandb.Settings()

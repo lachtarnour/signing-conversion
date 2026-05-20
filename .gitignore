@@ -8,9 +8,11 @@ dev.ipynb
 __pycache__/
 .venv/
 /data/
+wandb/
 *.egg-info/
 dist/
 build/
 checkpoints/
+
 
 .env

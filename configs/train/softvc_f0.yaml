@@ -14,7 +14,7 @@ device:
 
 logging:
   wandb:
-    enabled: false
+    enabled: True
     project: signing-conversion
     run_name: softvc-f0
     tags: []
@@ -22,12 +22,12 @@ logging:
 
 train:
   batch_size: 16
-  num_workers: 2
+  num_workers: 0
   learning_rate: 0.0004
   weight_decay: 0.00001
   betas: [0.8, 0.99]
   max_steps: 80000
-  log_every: 1
+  log_every: 100
   eval_every: 1000
   save_every: 1000
 

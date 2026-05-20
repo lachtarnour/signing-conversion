@@ -126,7 +126,7 @@ class SoftVCTrainer:
         running_count = 0
         LOG.info("Training params=%d device=%s", self.model.num_parameters, self.device)
         if self.logger is not None:
-            self.logger.watch(self.model)
+            self.logger.log_training_info(self.optimizer, self.cfg, self.train_loader.batch_size)
         try:
             for batch in self._epoch_iterator():
                 metrics = self.step(batch)
@@ -142,14 +142,9 @@ class SoftVCTrainer:
                         elapsed,
                     )
                     if self.logger is not None:
-                        self.logger.log(
-                            {
-                                "train/loss": train_loss,
-                                "train/learning_rate": self.optimizer.param_groups[0]["lr"],
-                                "time/elapsed_seconds": elapsed,
-                            },
-                            self.global_step,
-                        )
+                        wandb_metrics = {"train/loss": train_loss}
+                        wandb_metrics.update(self.logger.gpu_metrics())
+                        self.logger.log(wandb_metrics, self.global_step)
                     running = 0.0
                     running_count = 0
                 if self.val_loader is not None and self.global_step % self.cfg.eval_every == 0:
