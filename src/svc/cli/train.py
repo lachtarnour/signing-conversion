@@ -96,6 +96,9 @@ def build_trainer(cfg: dict, max_steps: int | None = None) -> SoftVCTrainer:
             if train_cfg.get("grad_clip_norm") is not None
             else None
         ),
+        batch_size=int(train_cfg["batch_size"]),
+        num_workers=int(train_cfg["num_workers"]),
+        max_mel_frames=max_mel_frames,
     )
     logger = build_wandb_logger(logging_cfg, run_config=cfg)
     return SoftVCTrainer(model, train_loader, val_loader, trainer_cfg, logger=logger)

@@ -30,6 +30,9 @@ class TrainerConfig:
     checkpoints_dir: str = "checkpoints"
     device: str = "cpu"
     grad_clip_norm: float | None = 1.0
+    batch_size: int | None = None
+    num_workers: int = 0
+    max_mel_frames: int | None = None
 
 
 class SoftVCTrainer:
@@ -145,7 +148,7 @@ class SoftVCTrainer:
         running_count = 0
         LOG.info("Training params=%d device=%s", self.model.num_parameters, self.device)
         if self.logger is not None:
-            self.logger.log_training_info(self.optimizer, self.cfg, self.train_loader.batch_size)
+            self.logger.log_training_info(self.model, self.optimizer, self.cfg)
         try:
             for batch in self._epoch_iterator():
                 loss = self.step(batch)

@@ -55,24 +55,34 @@ class WandbLogger:
         if self._wandb is not None:
             self._wandb.log(metrics, step=step)
 
-    def log_training_info(self, optimizer: Any, trainer_config: Any, batch_size: int | None) -> None:
+    def log_training_info(self, model: Any, optimizer: Any, trainer_config: Any) -> None:
         if self._run is None:
             return
         optimizer_group = optimizer.param_groups[0] if optimizer.param_groups else {}
+        model_config = getattr(model, "config", {})
+        if not isinstance(model_config, dict):
+            model_config = {}
         self._run.config.update(
             {
+                "model_resolved": {
+                    "content_dim": model_config.get("content_dim"),
+                    "speaker_dim": model_config.get("speaker_dim"),
+                    "num_speakers": model_config.get("num_speakers"),
+                },
                 "training_resolved": {
+                    "device": getattr(trainer_config, "device", None),
+                    "batch_size": getattr(trainer_config, "batch_size", None),
+                    "num_workers": getattr(trainer_config, "num_workers", None),
+                    "max_mel_frames": getattr(trainer_config, "max_mel_frames", None),
                     "optimizer": optimizer.__class__.__name__,
                     "learning_rate": optimizer_group.get("lr"),
                     "weight_decay": optimizer_group.get("weight_decay"),
                     "betas": optimizer_group.get("betas"),
-                    "max_steps": getattr(trainer_config, "max_steps", None),
-                    "batch_size": batch_size,
                     "grad_clip_norm": getattr(trainer_config, "grad_clip_norm", None),
+                    "max_steps": getattr(trainer_config, "max_steps", None),
                     "log_every": getattr(trainer_config, "log_every", None),
                     "eval_every": getattr(trainer_config, "eval_every", None),
                     "save_every": getattr(trainer_config, "save_every", None),
-                    "device": getattr(trainer_config, "device", None),
                 }
             },
             allow_val_change=True,
