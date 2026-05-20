@@ -37,9 +37,21 @@ def build_trainer(cfg: dict, max_steps: int | None = None) -> SoftVCTrainer:
     dev_manifest = paths_cfg.get("dev_manifest")
     dev_manifest_path = resolve_path(dev_manifest, base_dir=base_dir) if dev_manifest else None
 
-    train_ds = SVCDataset(train_manifest, base_dir=base_dir)
+    max_mel_frames = train_cfg.get("max_mel_frames")
+    max_mel_frames = int(max_mel_frames) if max_mel_frames is not None else None
+    train_ds = SVCDataset(
+        train_manifest,
+        base_dir=base_dir,
+        max_mel_frames=max_mel_frames,
+        random_crop=True,
+    )
     val_ds = (
-        SVCDataset(dev_manifest_path, base_dir=base_dir)
+        SVCDataset(
+            dev_manifest_path,
+            base_dir=base_dir,
+            max_mel_frames=max_mel_frames,
+            random_crop=False,
+        )
         if dev_manifest_path is not None and dev_manifest_path.is_file()
         else None
     )
@@ -79,6 +91,11 @@ def build_trainer(cfg: dict, max_steps: int | None = None) -> SoftVCTrainer:
         save_every=int(train_cfg["save_every"]),
         checkpoints_dir=str(resolve_path(paths_cfg["checkpoints_dir"])),
         device=str(resolve_device(device_cfg.get("torch", "auto"), backend="torch")),
+        grad_clip_norm=(
+            float(train_cfg["grad_clip_norm"])
+            if train_cfg.get("grad_clip_norm") is not None
+            else None
+        ),
     )
     logger = build_wandb_logger(logging_cfg, run_config=cfg)
     return SoftVCTrainer(model, train_loader, val_loader, trainer_cfg, logger=logger)

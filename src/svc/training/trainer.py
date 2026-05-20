@@ -29,6 +29,7 @@ class TrainerConfig:
     save_every: int = 1000
     checkpoints_dir: str = "checkpoints"
     device: str = "cpu"
+    grad_clip_norm: float | None = 1.0
 
 
 class SoftVCTrainer:
@@ -63,9 +64,10 @@ class SoftVCTrainer:
             out[key] = out[key].to(self.device, non_blocking=True)
         return out
 
-    def step(self, batch: dict) -> dict[str, float]:
+    def step(self, batch: dict) -> torch.Tensor | None:
         self.model.train()
         batch = self._move_batch(batch)
+        self.optimizer.zero_grad(set_to_none=True)
         pred = self.model(
             content=batch["content"],
             f0=batch["f0"],
@@ -76,18 +78,32 @@ class SoftVCTrainer:
         )
         target = batch["mel"][:, 1 : pred.size(1) + 1, :]
         loss = length_normalized_l1(pred, target, batch["mel_lengths"])
-        self.optimizer.zero_grad(set_to_none=True)
+        if not torch.isfinite(loss):
+            self.global_step += 1
+            LOG.warning("step=%d skipped non-finite loss", self.global_step)
+            return None
         loss.backward()
+        if self.cfg.grad_clip_norm is not None:
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(),
+                self.cfg.grad_clip_norm,
+                error_if_nonfinite=False,
+            )
+            if not torch.isfinite(grad_norm):
+                self.optimizer.zero_grad(set_to_none=True)
+                self.global_step += 1
+                LOG.warning("step=%d skipped non-finite gradients", self.global_step)
+                return None
         self.optimizer.step()
         self.global_step += 1
-        return {"loss": float(loss.detach().cpu())}
+        return loss.detach()
 
     @torch.no_grad()
     def evaluate(self) -> float | None:
         if self.val_loader is None:
             return None
         self.model.eval()
-        total = 0.0
+        total: torch.Tensor | None = None
         count = 0
         for batch in self.val_loader:
             batch = self._move_batch(batch)
@@ -100,9 +116,12 @@ class SoftVCTrainer:
                 mel_context=batch["mel"][:, :-1, :],
             )
             target = batch["mel"][:, 1 : pred.size(1) + 1, :]
-            total += float(length_normalized_l1(pred, target, batch["mel_lengths"]).cpu())
+            loss = length_normalized_l1(pred, target, batch["mel_lengths"]).detach()
+            total = loss if total is None else total + loss
             count += 1
-        return total / max(1, count)
+        if total is None:
+            return None
+        return float((total / max(1, count)).item())
 
     def save(self, name: str) -> Path:
         path = Path(self.cfg.checkpoints_dir) / name
@@ -122,18 +141,23 @@ class SoftVCTrainer:
 
     def fit(self) -> None:
         start = time.time()
-        running = 0.0
+        running: torch.Tensor | None = None
         running_count = 0
         LOG.info("Training params=%d device=%s", self.model.num_parameters, self.device)
         if self.logger is not None:
             self.logger.log_training_info(self.optimizer, self.cfg, self.train_loader.batch_size)
         try:
             for batch in self._epoch_iterator():
-                metrics = self.step(batch)
-                running += metrics["loss"]
-                running_count += 1
+                loss = self.step(batch)
+                if loss is not None:
+                    running = loss if running is None else running + loss
+                    running_count += 1
                 if self.global_step % self.cfg.log_every == 0:
-                    train_loss = running / max(1, running_count)
+                    train_loss = (
+                        float((running / running_count).item())
+                        if running is not None and running_count > 0
+                        else float("nan")
+                    )
                     elapsed = time.time() - start
                     LOG.info(
                         "step=%d loss=%.4f elapsed=%.1fs",
@@ -145,7 +169,7 @@ class SoftVCTrainer:
                         wandb_metrics = {"train/loss": train_loss}
                         wandb_metrics.update(self.logger.gpu_metrics())
                         self.logger.log(wandb_metrics, self.global_step)
-                    running = 0.0
+                    running = None
                     running_count = 0
                 if self.val_loader is not None and self.global_step % self.cfg.eval_every == 0:
                     val_loss = self.evaluate()

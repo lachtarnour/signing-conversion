@@ -68,6 +68,7 @@ class WandbLogger:
                     "betas": optimizer_group.get("betas"),
                     "max_steps": getattr(trainer_config, "max_steps", None),
                     "batch_size": batch_size,
+                    "grad_clip_norm": getattr(trainer_config, "grad_clip_norm", None),
                     "log_every": getattr(trainer_config, "log_every", None),
                     "eval_every": getattr(trainer_config, "eval_every", None),
                     "save_every": getattr(trainer_config, "save_every", None),
