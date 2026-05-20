@@ -2,9 +2,10 @@ project:
   seed: 1234
 
 paths:
-  raw_dir: data/raw/m4singer
-  processed_dir: data/processed
-  manifest_dir: data/manifests
+  base_dir: data
+  raw_dir: raw/m4singer
+  processed_dir: processed
+  manifest_dir: manifests
 
 audio:
   sample_rate: 16000

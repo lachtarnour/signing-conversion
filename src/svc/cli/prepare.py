@@ -66,6 +66,7 @@ def main() -> int:
     pitch_cfg = section(cfg, "pitch")
     device_cfg = section(cfg, "device")
     options_cfg = section(cfg, "preprocess")
+    base_dir = resolve_path(paths_cfg.get("base_dir", "."))
 
     seed = int(project_cfg.get("seed", 1234))
     seed_everything(seed)
@@ -80,9 +81,10 @@ def main() -> int:
         else int(options_cfg.get("num_workers", 1))
     )
     preprocess_cfg = PreprocessConfig(
-        raw_dir=resolve_path(paths_cfg["raw_dir"]),
-        processed_dir=resolve_path(paths_cfg["processed_dir"]),
-        manifest_dir=resolve_path(paths_cfg["manifest_dir"]),
+        base_dir=base_dir,
+        raw_dir=resolve_path(paths_cfg["raw_dir"], base_dir=base_dir),
+        processed_dir=resolve_path(paths_cfg["processed_dir"], base_dir=base_dir),
+        manifest_dir=resolve_path(paths_cfg["manifest_dir"], base_dir=base_dir),
         encoder_name=encoder_name,
         pitch_name=pitch_name,
         sample_rate=sample_rate,

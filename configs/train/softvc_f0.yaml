@@ -3,9 +3,10 @@ project:
   seed: 1234
 
 paths:
-  processed_dir: data/processed
-  train_manifest: data/manifests/manifest_train.jsonl
-  dev_manifest: data/manifests/manifest_dev.jsonl
+  base_dir: data
+  processed_dir: processed
+  train_manifest: manifests/manifest_train.jsonl
+  dev_manifest: manifests/manifest_dev.jsonl
   checkpoints_dir: checkpoints
 
 device:

@@ -13,8 +13,9 @@ from svc.data.manifest import read_manifest
 
 
 class SVCDataset(Dataset):
-    def __init__(self, manifest_path: str | Path) -> None:
+    def __init__(self, manifest_path: str | Path, base_dir: str | Path | None = None) -> None:
         self.entries = read_manifest(manifest_path)
+        self.base_dir = Path(base_dir).expanduser().resolve() if base_dir is not None else None
         if not self.entries:
             raise ValueError(f"No samples in manifest: {manifest_path}")
 
@@ -25,13 +26,19 @@ class SVCDataset(Dataset):
     def _load(path: str) -> np.ndarray:
         return np.load(path)
 
+    def _path(self, path: str) -> Path:
+        p = Path(path)
+        if p.is_absolute() or self.base_dir is None:
+            return p
+        return self.base_dir / p
+
     def __getitem__(self, index: int) -> dict[str, Any]:
         entry = self.entries[index]
-        mel = self._load(entry.mel_path)
-        content = self._load(entry.content_path)
-        f0 = self._load(entry.f0_path)
-        voiced = self._load(entry.voiced_path)
-        volume = self._load(entry.volume_path)
+        mel = self._load(str(self._path(entry.mel_path)))
+        content = self._load(str(self._path(entry.content_path)))
+        f0 = self._load(str(self._path(entry.f0_path)))
+        voiced = self._load(str(self._path(entry.voiced_path)))
+        volume = self._load(str(self._path(entry.volume_path)))
 
         length = min(content.shape[0], f0.shape[0], voiced.shape[0], volume.shape[0])
         mel_length = min(mel.shape[0], 2 * length)

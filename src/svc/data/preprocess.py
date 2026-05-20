@@ -28,6 +28,7 @@ from svc.utils.seed import seed_everything
 
 @dataclass(frozen=True)
 class PreprocessConfig:
+    base_dir: Path
     raw_dir: Path
     processed_dir: Path
     manifest_dir: Path
@@ -177,12 +178,12 @@ def _process_audio_item(
                 split=split,
                 speaker=speaker,
                 speaker_id=speaker_ids[speaker],
-                audio_path=str(audio_path),
-                mel_path=str(paths["mel"]),
-                content_path=str(paths["content"]),
-                f0_path=str(paths["f0"]),
-                voiced_path=str(paths["voiced"]),
-                volume_path=str(paths["volume"]),
+                audio_path=_manifest_path(audio_path, cfg.base_dir),
+                mel_path=_manifest_path(paths["mel"], cfg.base_dir),
+                content_path=_manifest_path(paths["content"], cfg.base_dir),
+                f0_path=_manifest_path(paths["f0"], cfg.base_dir),
+                voiced_path=_manifest_path(paths["voiced"], cfg.base_dir),
+                volume_path=_manifest_path(paths["volume"], cfg.base_dir),
             )
         )
     return entries
@@ -346,6 +347,15 @@ def _pitch_device(cfg: PreprocessConfig) -> str:
 
 def _build_mel_module(cfg: PreprocessConfig) -> LogMelSpectrogram:
     return LogMelSpectrogram().to(resolve_device(cfg.torch_device, backend="torch")).eval()
+
+
+def _manifest_path(path: str | Path, base_dir: Path) -> str:
+    path = Path(path).resolve()
+    base = base_dir.resolve()
+    try:
+        return path.relative_to(base).as_posix()
+    except ValueError:
+        return os.path.relpath(path, base).replace(os.sep, "/")
 
 
 def _multiprocessing_context(cfg: PreprocessConfig) -> mp.context.BaseContext | None:

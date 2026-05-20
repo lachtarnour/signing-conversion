@@ -30,15 +30,16 @@ def build_trainer(cfg: dict, max_steps: int | None = None) -> SoftVCTrainer:
     model_cfg = section(cfg, "model")
     device_cfg = section(cfg, "device")
     logging_cfg = section(cfg, "logging")
+    base_dir = resolve_path(paths_cfg.get("base_dir", "."))
 
     seed_everything(int(project_cfg.get("seed", 1234)))
-    train_manifest = resolve_path(paths_cfg["train_manifest"])
+    train_manifest = resolve_path(paths_cfg["train_manifest"], base_dir=base_dir)
     dev_manifest = paths_cfg.get("dev_manifest")
-    dev_manifest_path = resolve_path(dev_manifest) if dev_manifest else None
+    dev_manifest_path = resolve_path(dev_manifest, base_dir=base_dir) if dev_manifest else None
 
-    train_ds = SVCDataset(train_manifest)
+    train_ds = SVCDataset(train_manifest, base_dir=base_dir)
     val_ds = (
-        SVCDataset(dev_manifest_path)
+        SVCDataset(dev_manifest_path, base_dir=base_dir)
         if dev_manifest_path is not None and dev_manifest_path.is_file()
         else None
     )
@@ -62,7 +63,10 @@ def build_trainer(cfg: dict, max_steps: int | None = None) -> SoftVCTrainer:
         else None
     )
     num_speakers = int(
-        model_cfg.get("num_speakers", _num_speakers(str(resolve_path(paths_cfg["processed_dir"]))))
+        model_cfg.get(
+            "num_speakers",
+            _num_speakers(str(resolve_path(paths_cfg["processed_dir"], base_dir=base_dir))),
+        )
     )
     model = build_acoustic_model({**model_cfg, "num_speakers": num_speakers})
     trainer_cfg = TrainerConfig(
