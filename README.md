@@ -21,6 +21,39 @@ Main acoustic model:
 src/svc/models/acoustic/softvc_f0.py
 ```
 
+## Pipeline Architecture
+
+```text
+Raw singing audio
+  -> resample to 16 kHz
+  -> HuBERT soft content units
+  -> RMVPE log-F0 + voiced flag
+  -> RMS volume
+  -> log-mel target
+  -> JSONL manifests
+```
+
+Training:
+
+```text
+manifest
+  -> content/f0/voiced/volume/mel features
+  -> Stage 1 acoustic model
+  -> masked L1 mel loss
+  -> checkpoint
+```
+
+Inference:
+
+```text
+source wav
+  -> content + log-F0 + voiced + volume
+  -> Stage 1 acoustic model
+  -> generated mel
+  -> pretrained HiFi-GAN
+  -> converted wav
+```
+
 ## Contribution
 
 This project does not reimplement HuBERT, RMVPE, or HiFi-GAN. It builds a focused Stage 1 training pipeline around these existing components.
@@ -87,6 +120,17 @@ data/manifests/manifest_dev.jsonl
 
 ```bash
 python -m svc.cli.train --config configs/train/softvc_f0.yaml
+```
+
+## Convert
+
+```bash
+python -m svc.cli.convert \
+  --config configs/inference/softvc_f0.yaml \
+  --checkpoint checkpoints/softvc_f0_last.pt \
+  --input path/to/input.wav \
+  --output path/to/output.wav \
+  --speaker-id 0
 ```
 
 ## References
