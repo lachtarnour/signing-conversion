@@ -104,6 +104,11 @@ python scripts/prepare_m4singer_dataset.py --config configs/dataset/m4singer.yam
 
 ## Preprocess
 
+
+```bash
+python -m svc.cli.cache --config configs/prepare/manifest.yaml
+```
+
 ```bash
 python -m svc.cli.prepare --config configs/prepare/manifest.yaml
 ```

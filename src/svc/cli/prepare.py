@@ -1,50 +1,16 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
-import platform
-import sys
-from pathlib import Path
 
 from svc.data.preprocess import PreprocessConfig, preprocess_dataset_parallel
 from svc.utils.config import load_config, resolve_path, section
 from svc.utils.logging import configure_logging, setup_warnings
+from svc.utils.runtime import check_pitch_dependency, check_python_version
 from svc.utils.seed import seed_everything
 
 
-def _check_python_version() -> None:
-    if sys.version_info >= (3, 11):
-        return
-    raise SystemExit(
-        "This project requires Python 3.11+.\n"
-        f"Current Python: {sys.version.split()[0]}\n"
-        "Run: source .venv/bin/activate"
-    )
-
-
-def _check_pitch_dependency(pitch_name: str, backend: str) -> None:
-    if pitch_name.replace("-", "_").lower() != "rmvpe":
-        return
-    backend = _resolve_rmvpe_backend(backend)
-    module = "mlx_rmvpe" if backend == "mlx" else "rmvpe_onnx"
-    if importlib.util.find_spec(module) is not None:
-        return
-    raise SystemExit(
-        f"RMVPE {backend} backend is selected but {module} is not installed.\n"
-        f"Install with: python -m pip install -e '.[rmvpe-{backend}]'\n"
-        "Or set pitch.name: pyin in the config."
-    )
-
-
-def _resolve_rmvpe_backend(backend: str) -> str:
-    normalized = backend.replace("-", "_").lower()
-    if normalized != "auto":
-        return normalized
-    return "mlx" if platform.system() == "Darwin" else "onnx"
-
-
 def main() -> int:
-    _check_python_version()
+    check_python_version()
     setup_warnings()
     configure_logging()
     parser = argparse.ArgumentParser(description=__doc__)
@@ -73,7 +39,7 @@ def main() -> int:
     encoder_name = encoder_cfg["name"]
     pitch_name = pitch_cfg["name"]
     pitch_backend = pitch_cfg.get("backend", "auto")
-    _check_pitch_dependency(pitch_name, pitch_backend)
+    check_pitch_dependency(pitch_name, pitch_backend)
     sample_rate = int(audio_cfg["sample_rate"])
     num_workers = (
         args.num_workers
