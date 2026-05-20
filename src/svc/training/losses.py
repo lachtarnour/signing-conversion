@@ -9,12 +9,17 @@ def length_normalized_l1(
     target: torch.Tensor,
     mel_lengths: torch.Tensor,
 ) -> torch.Tensor:
-    """SoftVC length-normalized L1 mel loss."""
     if pred.shape != target.shape:
         frames = min(pred.size(1), target.size(1))
         pred = pred[:, :frames]
         target = target[:, :frames]
         mel_lengths = mel_lengths.clamp(max=frames)
+
+    frames = pred.size(1)
+    lengths = mel_lengths.to(pred.device).clamp(min=1, max=frames)
+    mask = torch.arange(frames, device=pred.device).unsqueeze(0) < lengths.unsqueeze(1)
+    mask = mask.unsqueeze(-1).to(pred.dtype)
+
     loss = F.l1_loss(pred, target, reduction="none")
-    loss = loss.sum(dim=(1, 2)) / (pred.size(-1) * mel_lengths.float().clamp_min(1.0))
+    loss = (loss * mask).sum(dim=(1, 2)) / (pred.size(-1) * lengths.to(pred.dtype))
     return loss.mean()

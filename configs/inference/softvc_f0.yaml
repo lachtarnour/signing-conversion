@@ -1,0 +1,17 @@
+audio:
+  sample_rate: 16000
+
+encoder:
+  name: hubert_soft
+  frame_rate_hz: 50
+
+pitch:
+  name: rmvpe
+  backend: auto
+
+vocoder:
+  name: hifigan_soft
+  pretrained: true
+
+device:
+  torch: auto
