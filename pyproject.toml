@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "signing-conversion"
 version = "0.1.0"
-description = "Singing voice conversion preprocessing pipeline."
+description = "Singing voice conversion preprocessing and training pipeline."
 requires-python = ">=3.11"
 dependencies = [
     "PyYAML",
     "librosa",
-    "numpy",
+    "numpy>=1.23,<2.1",
     "soundfile",
     "torch",
     "torchaudio",
@@ -18,20 +18,35 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# macOS / Apple Silicon
 rmvpe-mlx = [
-    "mlx-rmvpe",
+    "mlx-rmvpe; platform_system == 'Darwin'",
 ]
+
+# CPU fallback for Linux/Colab/local non-Mac
 rmvpe-onnx = [
-    "rmvpe-onnx",
+    "rmvpe-onnx; platform_system != 'Darwin'",
+    "onnxruntime>=1.24,<1.27; platform_system != 'Darwin'",
 ]
+
+# CUDA runtime only.
+# Important: install rmvpe-onnx separately with --no-deps.
 rmvpe-cuda = [
-    "rmvpe-onnx",
-    "onnxruntime-gpu",
+    "onnxruntime-gpu==1.26.0; platform_system == 'Linux'",
+    "numpy>=1.23,<2.1",
+    "protobuf>=5.29.1,<6.0",
+    "packaging",
+    "flatbuffers",
+    "coloredlogs",
 ]
+
+# Default RMVPE behavior
 rmvpe = [
     "mlx-rmvpe; platform_system == 'Darwin'",
     "rmvpe-onnx; platform_system != 'Darwin'",
+    "onnxruntime>=1.24,<1.27; platform_system != 'Darwin'",
 ]
+
 tracking = [
     "wandb",
 ]

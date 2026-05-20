@@ -78,7 +78,8 @@ python -m pip install -e '.[rmvpe,tracking]'
 On Colab/Linux CUDA:
 
 ```bash
-python -m pip install -e '.[rmvpe-cuda,tracking]'
+python -m pip install -e ".[rmvpe-cuda,tracking]"
+python -m pip install --no-deps "rmvpe-onnx==0.2.3"
 ```
 
 Without Weights & Biases:
