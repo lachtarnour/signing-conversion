@@ -73,7 +73,11 @@ class WandbLogger:
                     "device": getattr(trainer_config, "device", None),
                     "batch_size": getattr(trainer_config, "batch_size", None),
                     "num_workers": getattr(trainer_config, "num_workers", None),
-                    "max_mel_frames": getattr(trainer_config, "max_mel_frames", None),
+                    "train_eval_batches": getattr(
+                        trainer_config,
+                        "train_eval_batches",
+                        None,
+                    ),
                     "optimizer": optimizer.__class__.__name__,
                     "learning_rate": optimizer_group.get("lr"),
                     "weight_decay": optimizer_group.get("weight_decay"),

@@ -45,8 +45,9 @@ class SoftVCF0AcousticModel(nn.Module):
         volume: torch.Tensor,
         speaker_id: torch.Tensor,
         mel_context: torch.Tensor,
+        content_lengths: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        context = self.encoder(content, f0, voiced, volume, speaker_id)
+        context = self.encoder(content, f0, voiced, volume, speaker_id, lengths=content_lengths)
         if context.size(1) != mel_context.size(1):
             frames = min(context.size(1), mel_context.size(1))
             context = context[:, :frames]
@@ -61,8 +62,9 @@ class SoftVCF0AcousticModel(nn.Module):
         voiced: torch.Tensor,
         volume: torch.Tensor,
         speaker_id: torch.Tensor,
+        content_lengths: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        context = self.encoder(content, f0, voiced, volume, speaker_id)
+        context = self.encoder(content, f0, voiced, volume, speaker_id, lengths=content_lengths)
         return self.decoder.generate(context)
 
     @property

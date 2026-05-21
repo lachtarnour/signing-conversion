@@ -14,24 +14,24 @@ device:
 
 logging:
   wandb:
-    enabled: True
+    enabled: true
     project: signing-conversion
     run_name: softvc-f0
     tags: []
     log_checkpoints: false
 
 train:
-  batch_size: 32 
+  batch_size: 16
   num_workers: 0
-  max_mel_frames: 600
-  learning_rate: 0.0002
+  train_eval_batches: 4
+  learning_rate: 0.0004
   weight_decay: 0.00001
   betas: [0.8, 0.99]
   grad_clip_norm: 1.0
   max_steps: 80000
-  log_every: 100
-  eval_every: 1000
-  save_every: 1000
+  log_every: 50 
+  eval_every: 50
+  save_every: 100
 
 model:
   name: softvc_f0

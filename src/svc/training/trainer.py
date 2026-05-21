@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 
 from svc.models.acoustic.softvc_f0 import SoftVCF0AcousticModel
 from svc.training.checkpoint import save_training_checkpoint
-from svc.training.losses import length_normalized_l1
+from svc.training.losses import length_normalized_l1, per_sample_length_normalized_l1
 from svc.training.optimizer import build_adamw
 from svc.training.wandb import WandbLogger
 
@@ -32,7 +32,7 @@ class TrainerConfig:
     grad_clip_norm: float | None = 1.0
     batch_size: int | None = None
     num_workers: int = 0
-    max_mel_frames: int | None = None
+    train_eval_batches: int | None = 4
 
 
 class SoftVCTrainer:
@@ -43,10 +43,12 @@ class SoftVCTrainer:
         val_loader: DataLoader | None,
         cfg: TrainerConfig,
         logger: WandbLogger | None = None,
+        train_eval_loader: DataLoader | None = None,
     ) -> None:
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
+        self.train_eval_loader = train_eval_loader
         self.cfg = cfg
         self.logger = logger
         self.device = torch.device(cfg.device)
@@ -63,7 +65,16 @@ class SoftVCTrainer:
 
     def _move_batch(self, batch: dict) -> dict:
         out = dict(batch)
-        for key in ("mel", "mel_lengths", "content", "f0", "voiced", "volume", "speaker_id"):
+        for key in (
+            "mel",
+            "mel_lengths",
+            "content",
+            "content_lengths",
+            "f0",
+            "voiced",
+            "volume",
+            "speaker_id",
+        ):
             out[key] = out[key].to(self.device, non_blocking=True)
         return out
 
@@ -78,6 +89,7 @@ class SoftVCTrainer:
             volume=batch["volume"],
             speaker_id=batch["speaker_id"],
             mel_context=batch["mel"][:, :-1, :],
+            content_lengths=batch["content_lengths"],
         )
         target = batch["mel"][:, 1 : pred.size(1) + 1, :]
         loss = length_normalized_l1(pred, target, batch["mel_lengths"])
@@ -101,30 +113,46 @@ class SoftVCTrainer:
         self.global_step += 1
         return loss.detach()
 
+    def _batch_losses(self, batch: dict) -> torch.Tensor:
+        batch = self._move_batch(batch)
+        pred = self.model(
+            content=batch["content"],
+            f0=batch["f0"],
+            voiced=batch["voiced"],
+            volume=batch["volume"],
+            speaker_id=batch["speaker_id"],
+            mel_context=batch["mel"][:, :-1, :],
+            content_lengths=batch["content_lengths"],
+        )
+        target = batch["mel"][:, 1 : pred.size(1) + 1, :]
+        losses = per_sample_length_normalized_l1(pred, target, batch["mel_lengths"])
+        del batch, pred, target
+        return losses
+
     @torch.no_grad()
-    def evaluate(self) -> float | None:
-        if self.val_loader is None:
+    def evaluate_loader(
+        self,
+        loader: DataLoader | None,
+        max_batches: int | None = None,
+    ) -> float | None:
+        if loader is None:
             return None
         self.model.eval()
-        total: torch.Tensor | None = None
+        total = 0.0
         count = 0
-        for batch in self.val_loader:
-            batch = self._move_batch(batch)
-            pred = self.model(
-                content=batch["content"],
-                f0=batch["f0"],
-                voiced=batch["voiced"],
-                volume=batch["volume"],
-                speaker_id=batch["speaker_id"],
-                mel_context=batch["mel"][:, :-1, :],
-            )
-            target = batch["mel"][:, 1 : pred.size(1) + 1, :]
-            loss = length_normalized_l1(pred, target, batch["mel_lengths"]).detach()
-            total = loss if total is None else total + loss
-            count += 1
-        if total is None:
+        for batch_idx, batch in enumerate(loader):
+            if max_batches is not None and batch_idx >= max_batches:
+                break
+            losses = self._batch_losses(batch)
+            total += float(losses.sum().item())
+            count += int(losses.numel())
+            del losses
+        if count == 0:
             return None
-        return float((total / max(1, count)).item())
+        return total / count
+
+    def evaluate(self) -> float | None:
+        return self.evaluate_loader(self.val_loader)
 
     def save(self, name: str) -> Path:
         path = Path(self.cfg.checkpoints_dir) / name
@@ -175,10 +203,28 @@ class SoftVCTrainer:
                     running = None
                     running_count = 0
                 if self.val_loader is not None and self.global_step % self.cfg.eval_every == 0:
+                    train_eval_loss = self.evaluate_loader(
+                        self.train_eval_loader,
+                        max_batches=self.cfg.train_eval_batches,
+                    )
                     val_loss = self.evaluate()
-                    LOG.info("step=%d val_loss=%.4f", self.global_step, val_loss)
-                    if self.logger is not None and val_loss is not None:
-                        self.logger.log({"val/loss": val_loss}, self.global_step)
+                    if train_eval_loss is None:
+                        LOG.info("step=%d val_loss=%.4f", self.global_step, val_loss)
+                    else:
+                        LOG.info(
+                            "step=%d train_eval_loss=%.4f val_loss=%.4f",
+                            self.global_step,
+                            train_eval_loss,
+                            val_loss,
+                        )
+                    if self.logger is not None:
+                        metrics = {}
+                        if train_eval_loss is not None:
+                            metrics["train/eval_loss"] = train_eval_loss
+                        if val_loss is not None:
+                            metrics["val/loss"] = val_loss
+                        if metrics:
+                            self.logger.log(metrics, self.global_step)
                     if val_loss is not None and val_loss < self.best_val_loss:
                         self.best_val_loss = val_loss
                         self.save("softvc_f0_best.pt")

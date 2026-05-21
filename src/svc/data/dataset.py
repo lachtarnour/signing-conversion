@@ -17,13 +17,9 @@ class SVCDataset(Dataset):
         self,
         manifest_path: str | Path,
         base_dir: str | Path | None = None,
-        max_mel_frames: int | None = None,
-        random_crop: bool = False,
     ) -> None:
         self.entries = read_manifest(manifest_path)
         self.base_dir = Path(base_dir).expanduser().resolve() if base_dir is not None else None
-        self.max_mel_frames = max_mel_frames
-        self.random_crop = random_crop
         if not self.entries:
             raise ValueError(f"No samples in manifest: {manifest_path}")
 
@@ -52,17 +48,6 @@ class SVCDataset(Dataset):
         mel_length = min(mel.shape[0], 2 * length)
         length = mel_length // 2
         mel_length = 2 * length
-        if self.max_mel_frames is not None and mel_length > self.max_mel_frames:
-            aligned_length = length
-            length = max(1, self.max_mel_frames // 2)
-            mel_length = 2 * length
-            start = self._crop_start(aligned_length - length)
-            mel_start = 2 * start
-            content = content[start : start + length]
-            f0 = f0[start : start + length]
-            voiced = voiced[start : start + length]
-            volume = volume[start : start + length]
-            mel = mel[mel_start : mel_start + mel_length]
 
         mel_t = torch.from_numpy(mel[:mel_length].astype(np.float32))
         mel_t = F.pad(mel_t, (0, 0, 1, 0))
@@ -78,13 +63,6 @@ class SVCDataset(Dataset):
             "volume": torch.from_numpy(volume[:length].astype(np.float32)),
             "speaker_id": int(entry.speaker_id),
         }
-
-    def _crop_start(self, max_start: int) -> int:
-        if max_start <= 0:
-            return 0
-        if self.random_crop:
-            return int(np.random.randint(0, max_start + 1))
-        return max_start // 2
 
 
 def pad_collate(batch: list[dict[str, Any]]) -> dict[str, Any]:

@@ -19,7 +19,15 @@ class HiFiGANVocoder(Vocoder):
             "discrete": "hifigan_hubert_discrete",
             "base": "hifigan",
         }[variant]
-        self.model = torch.hub.load("bshall/hifigan", entry_point, pretrained=pretrained)
+        self.model = torch.hub.load(
+            "bshall/hifigan",
+            entry_point,
+            pretrained=pretrained,
+            progress=False,
+            map_location="cpu",
+            trust_repo=True,
+            verbose=False,
+        )
         self.model.eval()
         for param in self.model.parameters():
             param.requires_grad_(False)
@@ -35,8 +43,8 @@ class HiFiGANVocoder(Vocoder):
             mel = mel.unsqueeze(0)
         if mel.dim() != 3:
             raise ValueError(f"mel must be (B, 128, T) or (128, T), got {tuple(mel.shape)}")
-        wav, sample_rate = self.model.generate(mel)
-        return wav, int(sample_rate)
+        wav = self.model(mel)
+        return wav, int(getattr(self.model, "sample_rate", 16000))
 
     def train(self, mode: bool = True) -> HiFiGANVocoder:
         super().train(False)

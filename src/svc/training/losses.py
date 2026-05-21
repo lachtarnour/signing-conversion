@@ -9,6 +9,14 @@ def length_normalized_l1(
     target: torch.Tensor,
     mel_lengths: torch.Tensor,
 ) -> torch.Tensor:
+    return per_sample_length_normalized_l1(pred, target, mel_lengths).mean()
+
+
+def per_sample_length_normalized_l1(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    mel_lengths: torch.Tensor,
+) -> torch.Tensor:
     if pred.shape != target.shape:
         frames = min(pred.size(1), target.size(1))
         pred = pred[:, :frames]
@@ -21,5 +29,4 @@ def length_normalized_l1(
     mask = mask.unsqueeze(-1).to(pred.dtype)
 
     loss = F.l1_loss(pred, target, reduction="none")
-    loss = (loss * mask).sum(dim=(1, 2)) / (pred.size(-1) * lengths.to(pred.dtype))
-    return loss.mean()
+    return (loss * mask).sum(dim=(1, 2)) / (pred.size(-1) * lengths.to(pred.dtype))

@@ -4,7 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
-from torch.utils.data import DataLoader
+import torch
+from torch.utils.data import DataLoader, Dataset, Subset
 
 from svc.data.dataset import SVCDataset, pad_collate
 from svc.models.factory import build_acoustic_model
@@ -23,6 +24,20 @@ def _num_speakers(processed_dir: str) -> int:
     return max(1, len(json.loads(path.read_text(encoding="utf-8"))))
 
 
+def _train_eval_subset(
+    dataset: Dataset,
+    batch_size: int,
+    num_batches: int | None,
+    seed: int,
+) -> Dataset:
+    if num_batches is None:
+        return dataset
+    count = min(len(dataset), max(1, batch_size * num_batches))
+    generator = torch.Generator().manual_seed(seed)
+    indices = torch.randperm(len(dataset), generator=generator)[:count].tolist()
+    return Subset(dataset, indices)
+
+
 def build_trainer(cfg: dict, max_steps: int | None = None) -> SoftVCTrainer:
     project_cfg = section(cfg, "project")
     paths_cfg = section(cfg, "paths")
@@ -32,25 +47,20 @@ def build_trainer(cfg: dict, max_steps: int | None = None) -> SoftVCTrainer:
     logging_cfg = section(cfg, "logging")
     base_dir = resolve_path(paths_cfg.get("base_dir", "."))
 
-    seed_everything(int(project_cfg.get("seed", 1234)))
+    seed = int(project_cfg.get("seed", 1234))
+    seed_everything(seed)
     train_manifest = resolve_path(paths_cfg["train_manifest"], base_dir=base_dir)
     dev_manifest = paths_cfg.get("dev_manifest")
     dev_manifest_path = resolve_path(dev_manifest, base_dir=base_dir) if dev_manifest else None
 
-    max_mel_frames = train_cfg.get("max_mel_frames")
-    max_mel_frames = int(max_mel_frames) if max_mel_frames is not None else None
     train_ds = SVCDataset(
         train_manifest,
         base_dir=base_dir,
-        max_mel_frames=max_mel_frames,
-        random_crop=True,
     )
     val_ds = (
         SVCDataset(
             dev_manifest_path,
             base_dir=base_dir,
-            max_mel_frames=max_mel_frames,
-            random_crop=False,
         )
         if dev_manifest_path is not None and dev_manifest_path.is_file()
         else None
@@ -62,6 +72,22 @@ def build_trainer(cfg: dict, max_steps: int | None = None) -> SoftVCTrainer:
         num_workers=int(train_cfg["num_workers"]),
         collate_fn=pad_collate,
         drop_last=True,
+    )
+    batch_size = int(train_cfg["batch_size"])
+    train_eval_batches = train_cfg.get("train_eval_batches", 4)
+    train_eval_batches = int(train_eval_batches) if train_eval_batches is not None else None
+    train_eval_ds = _train_eval_subset(
+        train_ds,
+        batch_size=batch_size,
+        num_batches=train_eval_batches,
+        seed=seed,
+    )
+    train_eval_loader = DataLoader(
+        train_eval_ds,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=int(train_cfg["num_workers"]),
+        collate_fn=pad_collate,
     )
     val_loader = (
         DataLoader(
@@ -98,10 +124,17 @@ def build_trainer(cfg: dict, max_steps: int | None = None) -> SoftVCTrainer:
         ),
         batch_size=int(train_cfg["batch_size"]),
         num_workers=int(train_cfg["num_workers"]),
-        max_mel_frames=max_mel_frames,
+        train_eval_batches=train_eval_batches,
     )
     logger = build_wandb_logger(logging_cfg, run_config=cfg)
-    return SoftVCTrainer(model, train_loader, val_loader, trainer_cfg, logger=logger)
+    return SoftVCTrainer(
+        model,
+        train_loader,
+        val_loader,
+        trainer_cfg,
+        logger=logger,
+        train_eval_loader=train_eval_loader,
+    )
 
 
 def main() -> int:
