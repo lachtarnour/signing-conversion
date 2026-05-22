@@ -96,7 +96,7 @@ Objective evaluation:
 | Checkpoint | Split | Clips | Mel L1 |
 |---|---|---:|---:|
 | `softvc_f0_best.pt` | dev | full validation pass | **0.3912** |
-| `softvc_f0_best.pt` | dev | 64 clips, CLI evaluation | 0.3786 |
+| `softvc_f0_best.pt` | train | 64 clips, CLI evaluation | 0.3786 |
 
 The best checkpoint is selected by validation Mel L1. Audio quality is evaluated separately by listening to generated samples.
 
