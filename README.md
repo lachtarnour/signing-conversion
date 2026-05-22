@@ -72,7 +72,6 @@ Stage 1 was trained on M4Singer with 20 speakers. Reported losses are teacher-fo
 | Optimizer | AdamW |
 | Loss | masked length-normalized Mel L1 |
 | Best checkpoint | `checkpoints/softvc_f0_best.pt` |
-| Final reported step | 17,600 |
 
 ### Learning Curve
 
@@ -98,7 +97,6 @@ Objective evaluation:
 |---|---|---:|---:|
 | `softvc_f0_best.pt` | dev | full validation pass | **0.3912** |
 | `softvc_f0_best.pt` | dev | 64 clips, CLI evaluation | 0.3786 |
-| `softvc_f0_step_17600.pt` | dev | full validation pass | 0.4010 |
 
 The best checkpoint is selected by validation Mel L1. Audio quality is evaluated separately by listening to generated samples.
 
@@ -112,6 +110,26 @@ Generated samples are written to `outputs/inference/`; original source clips are
 | `test/Alto-7/远走高飞/0010.wav` | `Alto-4` | `softvc_f0_best.pt` | [`0010.wav`](outputs/original/0010.wav) | [`0010_spk3_softvc_f0_best.wav`](outputs/inference/0010_spk3_softvc_f0_best.wav) |
 
 These are Stage 1 baseline outputs. The mel prediction objective is stable, but the converted audio is not yet fully smooth. The main suspected issue is the gap between teacher-forced training and free-running autoregressive inference.
+
+### Limitations
+
+- Stage 1 is a baseline, not a production-quality conversion model yet.
+- The generated audio currently lacks fluidity, even though the teacher-forced mel objective is stable.
+- Training uses teacher forcing, while inference is fully autoregressive; errors can accumulate during generation.
+- The HiFi-GAN vocoder is pretrained and not fine-tuned on predicted mels.
+
+### Next Step
+
+Before moving to Stage 2, the next step is a focused Stage 1 diagnostic. The goal is to locate where the audio degradation appears by comparing:
+
+```text
+original waveform
+target mel -> HiFi-GAN
+teacher-forced predicted mel -> HiFi-GAN
+autoregressive generated mel -> HiFi-GAN
+```
+
+This should identify whether the issue comes from the vocoder, the acoustic model, or the autoregressive inference loop. After this diagnosis, the likely fixes are scheduled sampling, a revised decoder, a non-autoregressive acoustic model, or a pitch-aware vocoder such as NSF-HiFi-GAN.
 
 ## Quickstart
 
@@ -258,26 +276,6 @@ src/svc/evaluation/
                 checkpoint evaluation
 src/svc/utils/  config, device, seed, and runtime helpers
 ```
-
-## Limitations
-
-- Stage 1 is a baseline, not a production-quality conversion model yet.
-- The generated audio currently lacks fluidity, even though the teacher-forced mel objective is stable.
-- Training uses teacher forcing, while inference is fully autoregressive; errors can accumulate during generation.
-- The HiFi-GAN vocoder is pretrained and not fine-tuned on predicted mels.
-
-## Next Step
-
-Before moving to Stage 2, the next step is a focused Stage 1 diagnostic. The goal is to locate where the audio degradation appears by comparing:
-
-```text
-original waveform
-target mel -> HiFi-GAN
-teacher-forced predicted mel -> HiFi-GAN
-autoregressive generated mel -> HiFi-GAN
-```
-
-This should identify whether the issue comes from the vocoder, the acoustic model, or the autoregressive inference loop. After this diagnosis, the likely fixes are scheduled sampling, a revised decoder, a non-autoregressive acoustic model, or a pitch-aware vocoder such as NSF-HiFi-GAN.
 
 ## References
 
